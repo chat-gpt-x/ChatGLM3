@@ -3,12 +3,12 @@ import streamlit as st
 import torch
 from transformers import AutoModel, AutoTokenizer
 
-MODEL_PATH = os.environ.get('MODEL_PATH', 'THUDM/chatglm3-6b')
+MODEL_PATH = os.environ.get('MODEL_PATH', '/home/mw/input/THUDM/chatglm3-6b-32k')
 TOKENIZER_PATH = os.environ.get("TOKENIZER_PATH", MODEL_PATH)
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 # 设置页面标题、图标和布局
 st.set_page_config(
-    page_title="ChatGLM3-6B 演示",
+    page_title="ChatGLM3-6B 在线对话机器人",
     page_icon=":robot:",
     layout="wide"
 )

@@ -22,7 +22,7 @@ from transformers import AutoTokenizer, AutoModel
 
 from utils import process_response, generate_chatglm3, generate_stream_chatglm3
 
-MODEL_PATH = os.environ.get('MODEL_PATH', 'THUDM/chatglm3-6b')
+MODEL_PATH = os.environ.get('MODEL_PATH', '/home/mw/input/THUDM/chatglm3-6b-32k')
 TOKENIZER_PATH = os.environ.get("TOKENIZER_PATH", MODEL_PATH)
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -61,7 +61,7 @@ class ModelList(BaseModel):
     data: List[ModelCard] = []
 
 
-class FunctionCallResponse(BaseModel):
+class ToolCallResponse(BaseModel):
     name: Optional[str] = None
     arguments: Optional[str] = None
 
@@ -70,13 +70,13 @@ class ChatMessage(BaseModel):
     role: Literal["user", "assistant", "system", "function"]
     content: str = None
     name: Optional[str] = None
-    function_call: Optional[FunctionCallResponse] = None
+    tool_calls: Optional[ToolCallResponse] = None
 
 
 class DeltaMessage(BaseModel):
     role: Optional[Literal["user", "assistant", "system"]] = None
     content: Optional[str] = None
-    function_call: Optional[FunctionCallResponse] = None
+    tool_calls: Optional[ToolCallResponse] = None
 
 
 class ChatCompletionRequest(BaseModel):
@@ -86,7 +86,7 @@ class ChatCompletionRequest(BaseModel):
     top_p: Optional[float] = 0.8
     max_tokens: Optional[int] = None
     stream: Optional[bool] = False
-    functions: Optional[Union[dict, List[dict]]] = None
+    tools: Optional[Union[dict, List[dict]]] = None
     # Additional parameters
     repetition_penalty: Optional[float] = 1.1
 
@@ -94,13 +94,13 @@ class ChatCompletionRequest(BaseModel):
 class ChatCompletionResponseChoice(BaseModel):
     index: int
     message: ChatMessage
-    finish_reason: Literal["stop", "length", "function_call"]
+    finish_reason: Literal["stop", "length", "tool_calls"]
 
 
 class ChatCompletionResponseStreamChoice(BaseModel):
     index: int
     delta: DeltaMessage
-    finish_reason: Optional[Literal["stop", "length", "function_call"]]
+    finish_reason: Optional[Literal["stop", "length", "tool_calls"]]
 
 
 class UsageInfo(BaseModel):
@@ -138,7 +138,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
         echo=False,
         stream=request.stream,
         repetition_penalty=request.repetition_penalty,
-        functions=request.functions,
+        tools=request.tools,
     )
 
     logger.debug(f"==== request ====\n{gen_params}")
@@ -154,21 +154,21 @@ async def create_chat_completion(request: ChatCompletionRequest):
         response["text"] = response["text"][1:]
     response["text"] = response["text"].strip()
     usage = UsageInfo()
-    function_call, finish_reason = None, "stop"
-    if request.functions:
+    tool_calls, finish_reason = None, "stop"
+    if request.tools:
         try:
-            function_call = process_response(response["text"], use_tool=True)
+            tool_calls = process_response(response["text"], use_tool=True)
         except:
             logger.warning("Failed to parse tool call, maybe the response is not a tool call or have been answered.")
 
-    if isinstance(function_call, dict):
-        finish_reason = "function_call"
-        function_call = FunctionCallResponse(**function_call)
+    if isinstance(tool_calls, dict):
+        finish_reason = "tool_calls"
+        tool_calls = ToolCallResponse(**tool_calls)
 
     message = ChatMessage(
         role="assistant",
         content=response["text"],
-        function_call=function_call if isinstance(function_call, FunctionCallResponse) else None,
+        tool_calls=tool_calls if isinstance(tool_calls, ToolCallResponse) else None,
     )
 
     logger.debug(f"==== message ====\n{message}")
@@ -202,23 +202,23 @@ async def predict(model_id: str, params: dict):
         previous_text = decoded_unicode
 
         finish_reason = new_response["finish_reason"]
-        if len(delta_text) == 0 and finish_reason != "function_call":
+        if len(delta_text) == 0 and finish_reason != "tool_calls":
             continue
 
-        function_call = None
-        if finish_reason == "function_call":
+        tool_calls = None
+        if finish_reason == "tool_calls":
             try:
-                function_call = process_response(decoded_unicode, use_tool=True)
+                tool_calls = process_response(decoded_unicode, use_tool=True)
             except:
                 logger.warning("Failed to parse tool call, maybe the response is not a tool call or have been answered.")
 
-        if isinstance(function_call, dict):
-            function_call = FunctionCallResponse(**function_call)
+        if isinstance(tool_calls, dict):
+            tool_calls = ToolCallResponse(**tool_calls)
 
         delta = DeltaMessage(
             content=delta_text,
             role="assistant",
-            function_call=function_call if isinstance(function_call, FunctionCallResponse) else None,
+            tool_calls=tool_calls if isinstance(tool_calls, ToolCallResponse) else None,
         )
 
         choice_data = ChatCompletionResponseStreamChoice(

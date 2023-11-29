@@ -103,13 +103,13 @@ def process_response(output: str, use_tool: bool = False) -> Union[str, dict]:
 @torch.inference_mode()
 def generate_stream_chatglm3(model: PreTrainedModel, tokenizer: PreTrainedTokenizer, params: dict):
     messages = params["messages"]
-    functions = params["functions"]
+    tools = params["tools"]
     temperature = float(params.get("temperature", 1.0))
     repetition_penalty = float(params.get("repetition_penalty", 1.0))
     top_p = float(params.get("top_p", 1.0))
     max_new_tokens = int(params.get("max_tokens", 256))
     echo = params.get("echo", True)
-    messages = process_chatglm_messages(messages, functions=functions)
+    messages = process_chatglm_messages(messages, tools=tools)
     query, role = messages[-1]["content"], messages[-1]["role"]
 
     inputs = tokenizer.build_chat_input(query, history=messages[:-1], role=role)
@@ -154,7 +154,7 @@ def generate_stream_chatglm3(model: PreTrainedModel, tokenizer: PreTrainedTokeni
                     "completion_tokens": total_len - input_echo_len,
                     "total_tokens": total_len,
                 },
-                "finish_reason": "function_call" if stop_found else None,
+                "finish_reason": "tool_calls" if stop_found else None,
             }
 
             if stop_found:
@@ -176,20 +176,20 @@ def generate_stream_chatglm3(model: PreTrainedModel, tokenizer: PreTrainedTokeni
     torch.cuda.empty_cache()
 
 
-def process_chatglm_messages(messages, functions=None):
+def process_chatglm_messages(messages, tools=None):
     _messages = messages
     messages = []
-    if functions:
+    if tools:
         messages.append(
             {
                 "role": "system",
                 "content": "Answer the following questions as best as you can. You have access to the following tools:",
-                "tools": functions
+                "tools": tools
             }
         )
 
     for m in _messages:
-        role, content, func_call = m.role, m.content, m.function_call
+        role, content, func_call = m.role, m.content, m.tool_calls
         if role == "function":
             messages.append(
                 {
