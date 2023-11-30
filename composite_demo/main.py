@@ -2,7 +2,7 @@ from enum import Enum
 import streamlit as st
 
 st.set_page_config(
-    page_title="ChatGLM3 Demo",
+    page_title="ChatGLM3-6B 在线对话机器人",
     page_icon=":robot:",
     layout='centered',
     initial_sidebar_state='expanded',
@@ -15,11 +15,9 @@ You are ChatGLM3, a large language model trained by Zhipu.AI. Follow the user's 
 '''.strip()
 
 # Set the title of the demo
-st.title("ChatGLM3 Demo")
+st.title("ChatGLM3-6B 在线对话机器人")
 
 # Add your custom text here, with smaller font size
-st.markdown("<sub>智谱AI 公开在线技术文档: https://lslfd0slxc.feishu.cn/wiki/WvQbwIJ9tiPAxGk8ywDck6yfnof </sub> \n\n <sub> 更多 ChatGLM3-6B 的使用方法请参考文档。</sub>", unsafe_allow_html=True)
-
 class Mode(str, Enum):
     CHAT, TOOL, CI = '💬 Chat', '🛠️ Tool', '🧑‍💻 Code Interpreter'
 
